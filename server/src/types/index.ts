@@ -10,6 +10,9 @@ export interface IUser extends Document {
   updatedAt: Date;
   createdAt: Date;
 
+  resetPasswordToken?: string;
+  resetPasswordExpires?: Date;
+
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 

@@ -1,7 +1,14 @@
 import { Request, Response } from 'express';
 import User from '../user/user.model';
-import { generateAccessToken, generateRefreshToken } from './auth.utils';
+import {
+  generateAccessToken,
+  generateRefreshToken,
+  generateResetPassword,
+  hashedRefreshToken,
+} from './auth.utils';
 import RefreshToken from './refreshToken.model';
+import crypto from 'crypto';
+import { sendEmail } from '../../utils/sendEmail';
 
 /*
 ============ REGISTER CONTROLLER ==============
@@ -186,14 +193,236 @@ export const login = async (req: Request, res: Response) => {
 /*
 ============ REFRESH CONTROLLER ==============
 --- FLOW ---
-1. Read refreshToken from cookies
-2. Hash it (if stored hashed)
-3. Find user with that token
-4. If not found → reject
-5. Generate new access token
-6. (optional) rotate refresh token
-7. Send new access token
+1. Read refresh token from cookies
+2. If missing → 401
+3. Hash the token
+4. Find token in DB
+5. Validate:
+   - exists
+   - not revoked
+   - not expired
+6. Generate new access token
+7. (Optional) rotate refresh token
+8. Return new access token
+
+---- TOKEN ROTATION FLOW ----
+1. Validate old token
+2. Revoke old token
+3. Generate new refresh token
+4. Store new token
+5. Set new cookie
 */
+export const refreshToken = async (req: Request, res: Response) => {
+  try {
+    // 1. GET TOKEN FROM COOKIE
+    const token = req.cookies?.refreshToken;
+
+    if (!token) {
+      return res.status(401).json({
+        message: 'Refresh token missing',
+      });
+    }
+
+    // 2. HASH TOKEN
+    const hashedToken = hashedRefreshToken(token);
+
+    // 3. FIND TOKEN IN DB
+    const tokenDoc = await RefreshToken.findOne({
+      token: hashedToken,
+      isRevoked: false,
+    });
+
+    if (!tokenDoc || tokenDoc.isRevoked) {
+      return res.status(403).json({
+        message: 'Invalid refresh token',
+      });
+    }
+
+    // 5. CHECK EXPIRY
+    if (tokenDoc.expiresAt < new Date()) {
+      return res.status(403).json({
+        message: 'Refresh token expired',
+      });
+    }
+
+    // FIND THE ATTACHED USER
+    const user = await User.findById(tokenDoc.userId);
+
+    if (!user || user.isDeleted) {
+      return res.status(403).json({
+        message: 'User not found',
+      });
+    }
+
+    // TOKEN ROTATION
+    tokenDoc.isRevoked = true;
+    await tokenDoc.save();
+
+    const newRefreshToken = generateRefreshToken();
+    const newHashedToken = hashedRefreshToken(newRefreshToken);
+
+    await RefreshToken.create({
+      userId: user._id,
+      token: newHashedToken,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.cookie('refreshToken', newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    // 6. GENERATE NEW ACCESS TOKEN
+    const accessToken = generateAccessToken(user);
+
+    // 7. RETURN NEW ACCESS TOKEN
+    return res.status(200).json({
+      accessToken,
+    });
+  } catch (error: any) {
+    console.error('Refresh token error:', error.message);
+
+    return res.status(500).json({
+      message: 'Internal server error',
+    });
+  }
+};
+
+/*
+============ FORGOT PASSWORD CONTROLLER ==============
+---- FLOW ---
+1. Get email
+2. Find user
+3. Generate reset token
+4. Save hashed token + expiry
+5. Send email with raw token
+*/
+export const forgotPassword = async (req: Request, res: Response) => {
+  try {
+    // 1. GET EMAIL
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(401).json({ message: 'Email address is required' });
+    }
+
+    // 2. FIND USER
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      // 👇 don't reveal if user exists
+      return res.status(200).json({
+        message: 'If this email exists, a reset link has been sent',
+      });
+    }
+
+    // 3. GENERATE RESET TOKEN
+    const { rawToken, hashedToken } = generateResetPassword();
+
+    user.resetPasswordToken = hashedToken;
+    user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000);
+
+    await user.save();
+
+    // 🔗 Create reset link
+    const resetURL = `${process.env.CLIENT_URL}/reset-password/${rawToken}`;
+
+    // TODO: send email (nodemailer later)
+    // EMAIL CONTENT
+    const message = `
+        <h2>Password Reset</h2>
+        <p>Click below to reset your password:</p>
+        <a href="${resetURL}">${resetURL}</a>
+        <p>This link expires in 10 minutes.</p>
+    `;
+
+    // 6. SEND EMAIL
+    await sendEmail(user.email, 'Password reset', message);
+
+    console.log('RESET LINK:', resetURL);
+
+    return res.status(200).json({
+      message: 'Reset link sent to email',
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      message: 'Internal server error',
+    });
+  }
+};
+
+/*
+============ RESET PASSWORD CONTROLLER ==============
+---- FLOW ---
+1. Get token from params
+2. Hash token
+3. Find user with:
+   - matching token
+   - not expired
+4. Update password
+5. Remove reset token fields
+*/
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+    let { token } = req.params;
+    const { password } = req.body;
+
+    // ✅ 1. TYPE SAFETY (fix your error here)
+    if (Array.isArray(token)) {
+      token = token[0];
+    }
+
+    if (!token) {
+      return res.status(400).json({ message: 'Token is required' });
+    }
+
+    // ✅ 2. HASH TOKEN
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    // ✅ 3. FIND USER
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: new Date() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        message: 'Invalid or expired token',
+      });
+    }
+
+    // ✅ 4. VALIDATE PASSWORD (basic improvement)
+    if (!password || password.length < 6) {
+      return res.status(400).json({
+        message: 'Password must be at least 6 characters long',
+      });
+    }
+
+    // ✅ 5. UPDATE PASSWORD (assuming pre-save hook hashes it)
+    user.password = password;
+
+    // ✅ 6. REMOVE TOKEN FIELDS
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+
+    await user.save();
+
+    // ✅ 7. OPTIONAL: invalidate all sessions (if you use JWT/session versioning)
+    // user.tokenVersion += 1;
+
+    return res.status(200).json({
+      message: 'Password reset successful',
+    });
+  } catch (error) {
+    console.error(error); // ✅ better debugging
+    return res.status(500).json({
+      message: 'Internal server error',
+    });
+  }
+};
 
 /*
 ============ LOGOUT CONTROLLER ==============
@@ -203,12 +432,16 @@ export const login = async (req: Request, res: Response) => {
 */
 export const logout = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.userId;
+    const refreshToken = req.cookies.refreshToken;
 
-    if (userId) {
-      await User.findByIdAndUpdate(userId, {
-        refreshToken: null,
-      });
+    if (refreshToken) {
+      await RefreshToken.findOneAndUpdate(
+        { token: refreshToken },
+        {
+          isRevoked: true,
+          expiresAt: new Date(),
+        },
+      );
     }
 
     res.clearCookie('refreshToken', {

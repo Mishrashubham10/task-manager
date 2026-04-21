@@ -1,26 +1,88 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
+/* 🌞 LIGHT THEME (default) */
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #111111;
+
+  --card: #ffffff;
+  --card-foreground: #111111;
+
+  --muted: #f5f5f5;
+  --muted-foreground: #6b7280;
+
+  --border: #e5e5e5;
+  --input: #f5f5f5;
+
+  --primary: #2f76ff;
+  --primary-foreground: #ffffff;
+
+  --accent: #f1f5f9;
+  --accent-foreground: #111111;
+
+  --destructive: #ef4444;
+}
+
+/* 🌑 DARK THEME (Notion-like) */
+.dark {
+  --background: #191919;
+  --foreground: #e6e6e6;
+
+  --card: #202020;
+  --card-foreground: #e6e6e6;
+
+  --muted: #2a2a2a;
+  --muted-foreground: #9b9b9b;
+
+  --border: #333333;
+  --input: #2a2a2a;
+
+  --primary: #3b82f6;
+  --primary-foreground: #ffffff;
+
+  --accent: #2a2a2a;
+  --accent-foreground: #e6e6e6;
+
+  --destructive: #ef4444;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-destructive: var(--destructive);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+}
+
+/* subtle scrollbar (Notion feel) */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 10px;
 }

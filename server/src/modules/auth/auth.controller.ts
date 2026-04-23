@@ -10,6 +10,10 @@ import RefreshToken from './refreshToken.model';
 import crypto from 'crypto';
 import { sendEmail } from '../../utils/sendEmail';
 
+interface Cookies {
+  refreshToken?: string;
+}
+
 /*
 ============ REGISTER CONTROLLER ==============
 ----- FLOW ----
@@ -117,6 +121,8 @@ export const login = async (req: Request, res: Response) => {
     // 1. TAKE THE DATA FROM (req.body)
     const { email, password } = req.body;
 
+    console.log('EMAIL FROM BODY:', email);
+
     // 2. VALIDATE THE DATA
     if (!email || !password) {
       return res.status(400).json({
@@ -128,6 +134,7 @@ export const login = async (req: Request, res: Response) => {
     const user = await User.findOne({ email: email.toLowerCase() }).select(
       '+password',
     );
+    console.log('USER FOUND:', user);
     // 4. VALIDATE EXISTING USER
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
@@ -432,7 +439,7 @@ export const resetPassword = async (req: Request, res: Response) => {
 */
 export const logout = async (req: Request, res: Response) => {
   try {
-    const refreshToken = req.cookies.refreshToken;
+    const { refreshToken } = req.cookies as Cookies;
 
     if (refreshToken) {
       await RefreshToken.findOneAndUpdate(

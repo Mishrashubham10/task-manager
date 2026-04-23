@@ -53,14 +53,9 @@ const userSchema = new Schema<IUser>(
   },
 );
 
-/*
-=========== INDEXES ============
-*/
-userSchema.index({ email: 1 });
-
 // PASSWORD HASHING WITH PRE METHOD
 userSchema.pre('save', async function name() {
-  if (!this.isModified(this.password)) return;
+  if (!this.isModified('password')) return;
 
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);

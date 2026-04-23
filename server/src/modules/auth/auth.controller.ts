@@ -466,3 +466,36 @@ export const logout = async (req: Request, res: Response) => {
     });
   }
 };
+
+/*
+============ GETME CONTROLLER ==============
+--- FLOW ---
+1. GET THE USER FROM REQ.USER
+2. SEND IT IN RESPONSE
+*/
+export const getMe = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const user = req.user;
+
+    if (!user) {
+      res.status(401).json({
+        success: false,
+        message: 'Unauthorized: No user found',
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'User profile fetched successfully',
+      data: user,
+    });
+  } catch (error: unknown) {
+    const err = error as Error;
+
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Internal server error',
+    });
+  }
+};

@@ -5,6 +5,12 @@ interface LoginRequest {
   password: string;
 }
 
+interface RegisterRequest {
+  name: string;
+  email: string;
+  password: string;
+}
+
 interface User {
   id: string;
   email: string;
@@ -20,7 +26,7 @@ export const authApi = createApi({
   reducerPath: 'authApi',
 
   baseQuery: fetchBaseQuery({
-    baseUrl: process.env.REACT_APP_API_URL, // ✅ dynamic
+    baseUrl: process.env.NEXT_PUBLIC_API_URL, // ✅ dynamic
     credentials: 'include',
     prepareHeaders: (headers, { getState }) => {
       // optional: attach token if using localStorage
@@ -42,6 +48,15 @@ export const authApi = createApi({
       invalidatesTags: ['Auth'], // ✅ refresh user data
     }),
 
+    register: builder.mutation<AuthResponse, RegisterRequest>({
+      query: (data) => ({
+        url: '/register',
+        method: 'POST',
+        body: data,
+      }),
+      invalidatesTags: ['Auth'],
+    }),
+
     getMe: builder.query<User, void>({
       query: () => '/me',
       providesTags: ['Auth'],
@@ -57,4 +72,9 @@ export const authApi = createApi({
   }),
 });
 
-export const { useLoginMutation, useGetMeQuery, useLogoutMutation } = authApi;
+export const {
+  useLoginMutation,
+  useGetMeQuery,
+  useLogoutMutation,
+  useRegisterMutation,
+} = authApi;

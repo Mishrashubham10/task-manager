@@ -12,8 +12,13 @@ const app: Application = express()
 */
 app.use(express.json({ limit: '16kb' }))
 app.use(express.static("public"))
-app.use(cors());
+app.use(cors({
+    origin: process.env.CLIENT_URI,
+    credentials: true
+}));
 app.use(cookieParser());
+
+console.log("CLIENT_URL:", process.env.CLIENT_URI);
 
 /*
 ------------- ROUTES --------------

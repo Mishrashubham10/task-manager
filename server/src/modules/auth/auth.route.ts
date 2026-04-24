@@ -20,8 +20,8 @@ const router = Router();
 router.post('/register', registerLimiter, register);
 router.post('/login', loginLimiter, login);
 router.post('/refresh-token', refreshToken);
-router.post('/forgot-password', forgotPasswordLimiter, forgotPassword);
-router.post('/reset-password/:token', resetPassword);
+router.post('/forgot-password', forgotPasswordLimiter, protect, forgotPassword);
+router.post('/reset-password/:token', protect, resetPassword);
 router.post('/logout', logout);
 router.get('/me', protect, getMe);
 

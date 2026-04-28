@@ -1,5 +1,10 @@
 import { Request, Response } from 'express';
 import Task from './task.model';
+import mongoose from 'mongoose';
+
+type Params =  {
+  id: string;
+}
 
 /*
 ============== CREATE TASK - CONTROLLER =============
@@ -66,7 +71,7 @@ export const createTask = async (req: Request, res: Response) => {
 };
 
 /*
-============== GET TASK - CONTROLLER =============
+============== GET TASKS - CONTROLLER =============
 ---- FLOW ----
 1. TAKE QUERY - REQ.QUERY
 2. GET TASK - WITH REQ.USER.USERID
@@ -148,21 +153,221 @@ export const getTasks = async (req: Request, res: Response) => {
 };
 
 /*
+============== GET TASK BY ID - CONTROLLER =============
+---- FLOW ----
+1. AUTH CHECK
+2. VALIDATE OBJECT ID
+3. FIND TASK WITH OWNERSHIP
+4. NOT FOUND
+5. RETURN SAGE RESPONSE
+*/
+export const getTask = async (req: Request<Params>, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    const id = req.params.id;
+
+    // 1. AUTH CHECK
+    if (!userId) {
+      return res.status(401).json({
+        message: 'Unauthorized',
+      });
+    }
+
+    // 2. VALIDATE OBJECT ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        message: 'Invalid task ID',
+      });
+    }
+
+    // FIND TASK WITH OWNERSHIP
+    const task = await Task.findOne({
+      _id: id,
+      userId,
+      isDelete: false,
+    });
+
+    // 4. NOT FOUND
+    if (!task) {
+      return res.status(404).json({
+        message: 'Task not found',
+      });
+    }
+
+    // 5. RESPONSE
+    return res.status(200).json({
+      task: {
+        id: task._id,
+        title: task.title,
+        description: task.description,
+        status: task.status,
+        priority: task.priority,
+        dueDate: task.dueDate,
+        tags: task.tags,
+        createdAt: task.createdAt,
+        updatedAt: task.updatedAt,
+      },
+    });
+  } catch (err: any) {
+    console.error('Get task error:', err.message);
+
+    return res.status(500).json({
+      message: 'Internal server error',
+    });
+  }
+};
+
+/*
 ============== UPDATE TASK - CONTROLLER =============
 ---- FLOW ----
-1. Accept task data
-2. Validate input
-3. Attach logged-in user (owner)
-4. Save task
-5. Return safe response
+1. Validate user (auth)
+2. Validate task ID
+3. Ensure task belongs to user
+4. Allow partial updates
+5. Validate allowed fields
+6. Update task
+7. Return updated task
 */
+export const updateTask = async (req: Request<Params>, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    const id = req.params.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        message: 'Unauthorized',
+      });
+    }
+
+    // VALIDATE TASK ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        message: 'Invalid task ID',
+      });
+    }
+
+    // 2. FILTER ALLOWED FIELDS
+    const allowedFields = [
+      'title',
+      'description',
+      'status',
+      'priority',
+      'dueDate',
+      'tags',
+      'assignedTo',
+    ];
+
+    const updates: any = {};
+
+    for (const key of allowedFields) {
+      if (req.body[key] !== undefined) {
+        updates[key] = req.body[key];
+      }
+    }
+
+    // 3. FIND & UPDATE
+    const task = await Task.findOneAndUpdate(
+      {
+        _id: id,
+        userId,
+        isDeleted: false,
+      },
+      updates,
+      {
+        new: true, // return updated Document
+        runValidators: true, // enforce schema validation
+      },
+    );
+
+    // 4. NOT FOUND
+    if (!task) {
+      return res.status(404).json({
+        message: 'Task not found or unauthorized',
+      });
+    }
+
+    // 5. RESPONSE
+    return res.status(200).json({
+      message: 'Task updated successfully',
+      task: {
+        id: task._id,
+        title: task.title,
+        description: task.description,
+        status: task.status,
+        priority: task.priority,
+        dueDate: task.dueDate,
+        tags: task.tags,
+        updatedAt: task.updatedAt,
+      },
+    });
+  } catch (err: any) {
+    console.error('Update task error:', err.message);
+
+    return res.status(500).json({
+      message: 'Internal server error',
+    });
+  }
+};
 
 /*
 ============== DELETE TASK - CONTROLLER =============
 ---- FLOW ----
-1. Accept task data
-2. Validate input
-3. Attach logged-in user (owner)
-4. Save task
-5. Return safe response
+1. Validate user
+2. Validate task ID
+3. Ensure ownership
+4. Soft delete (isDeleted = true)
+5. Return success response
 */
+export const deleteTask = async (req: Request<Params>, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    const { id } = req.params;
+
+    // 1. AUTH CHECK
+    if (!userId) {
+      return res.status(401).json({
+        message: 'Unauthorized',
+      });
+    }
+
+    // 2. VALIDATE ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        message: 'Invalid task ID',
+      });
+    }
+
+    // 3. FIND AND SOFT-DELETE
+    const task = await Task.findOneAndUpdate(
+      {
+        _id: id,
+        userId,
+        isDeleted: false,
+      },
+      {
+        isDeleted: true,
+      },
+      {
+        new: true,
+      },
+    );
+
+    // 4. NOT FOUND
+    if (!task) {
+      return res.status(404).json({
+        message: 'Task not found or already deleted',
+      });
+    }
+
+    // 5. RESPONSE
+    return res.status(200).json({
+      message: 'Task deleted successfully',
+    });
+  } catch (err: any) {
+    console.error('Delete task error:', err.message);
+
+    return res.status(500).json({
+      message: 'Internal server error',
+    });
+  }
+};

@@ -28,7 +28,9 @@ export const protect = async (
   try {
     const token = req.cookies.accessToken;
 
-    console.log("TOKEN IS HERE", token);
+    console.log('TOKEN IS HERE', token);
+    // console.log('RAW COOKIE HEADER:', req.headers.cookie);
+    // console.log('PARSED COOKIES:', req.cookies);
 
     // 2. VERIFY DECODED
     const decoded = jwt.verify(
@@ -37,7 +39,9 @@ export const protect = async (
     ) as DecodedToken;
 
     // 3. FIND THE USER
-    const user = await User.findById(decoded.userId).select('_id role isDeleted');;
+    const user = await User.findById(decoded.userId).select(
+      '_id role isDeleted',
+    );
     if (!user || user.isDeleted) {
       return res.status(401).json({
         message: 'User not found or inactive',

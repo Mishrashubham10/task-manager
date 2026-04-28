@@ -35,7 +35,7 @@ export default function Navbar() {
         ) : user && !isError ? (
           <>
             {/* ✅ Logged in */}
-            <span className="text-sm">Hi, {user.name}</span>
+            {/* <span className="text-sm">Hi, {user.data?.name}</span> */}
 
             <Button
               variant="outline"

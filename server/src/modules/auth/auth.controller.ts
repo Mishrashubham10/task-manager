@@ -60,6 +60,13 @@ export const register = async (req: Request, res: Response) => {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
+    res.cookie('accessToken', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 15 * 60 * 1000, // 15 min
+    });
+
     // 👉 (later) store refreshToken in DB or Redis
     await RefreshToken.create({
       userId: user._id,
@@ -90,7 +97,6 @@ export const register = async (req: Request, res: Response) => {
     return res.status(201).json({
       message: 'User registered successfully',
       user: userResponse,
-      accessToken,
     });
   } catch (error: any) {
     return res.status(500).json({
@@ -150,6 +156,13 @@ export const login = async (req: Request, res: Response) => {
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken();
 
+    res.cookie('accessToken', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 15 * 60 * 1000, // 15 min
+    });
+
     // 5. HASH REFRESH TOKEN
 
     // 6. SET EXPIRY
@@ -188,7 +201,6 @@ export const login = async (req: Request, res: Response) => {
     return res.status(200).json({
       message: 'User logged in successfully',
       user: userResponse,
-      accessToken,
     });
   } catch (error: any) {
     return res.status(500).json({
@@ -473,22 +485,39 @@ export const logout = async (req: Request, res: Response) => {
 1. GET THE USER FROM REQ.USER
 2. SEND IT IN RESPONSE
 */
-export const getMe = async (req: Request, res: Response): Promise<void> => {
+export const getMe = async (req: Request, res: Response) => {
   try {
-    const user = req.user;
-
-    if (!user) {
-      res.status(401).json({
+    // 1. Check if user exists in request (set by protect middleware)
+    if (!req.user || !req.user.userId) {
+      return res.status(401).json({
         success: false,
         message: 'Unauthorized: No user found',
       });
-      return;
     }
 
-    res.status(200).json({
+    // 2. Fetch full user from DB
+    const user = await User.findById(req.user.userId)
+      .select('_id name email role isDelete')
+      .lean();
+
+    // 3. Validate user
+    if (!user || user.isDeleted) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not found or inactive',
+      });
+    }
+
+    // 4. Send response
+    return res.status(200).json({
       success: true,
       message: 'User profile fetched successfully',
-      data: user,
+      data: {
+        userId: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
     });
   } catch (error: unknown) {
     const err = error as Error;

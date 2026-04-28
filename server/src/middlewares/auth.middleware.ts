@@ -1,3 +1,4 @@
+import { refreshToken } from './../modules/auth/auth.controller';
 import { NextFunction, Request, Response } from 'express';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import User from '../modules/user/user.model';
@@ -25,14 +26,9 @@ export const protect = async (
   next: NextFunction,
 ) => {
   try {
-    const authHeaders = req.headers.authorization;
+    const token = req.cookies.accessToken;
 
-    if (!authHeaders || !authHeaders.startsWith('Bearer ')) {
-      return res.status(401).json({ message: 'Not authenticated' });
-    }
-
-    // EXTRACT THE TOKEN
-    const token = authHeaders.split(' ')[1];
+    console.log("TOKEN IS HERE", token);
 
     // 2. VERIFY DECODED
     const decoded = jwt.verify(

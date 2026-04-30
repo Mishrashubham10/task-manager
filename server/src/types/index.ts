@@ -36,6 +36,7 @@ export interface ITask extends Document {
 
   completedAt?: Date;
   isDeleted: boolean;
+  deletedAt?: Date;
 
   createdAt: Date;
   updatedAt: Date;

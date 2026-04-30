@@ -47,7 +47,7 @@ const taskSchema = new Schema<ITask>(
     owner: {
       type: Schema.Types.ObjectId,
       ref: 'User',
-      required: true
+      required: true,
     },
 
     collaborators: {
@@ -68,6 +68,10 @@ const taskSchema = new Schema<ITask>(
     isDeleted: {
       type: Boolean,
       default: false,
+    },
+
+    deletedAt: {
+      type: Date,
     },
   },
   {

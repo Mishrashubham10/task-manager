@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import Task from './task.model';
 import mongoose from 'mongoose';
+import User from '../user/user.model';
 
 type Params = {
   id: string;
@@ -17,26 +18,27 @@ type Params = {
 */
 export const createTask = async (req: Request, res: Response) => {
   try {
-    // 1. Accept task data
-    const { title, description, priority, dueDate, tags } = req.body;
-
-    // 2. Validate input
-    if (!title) {
-      return res.status(400).json({
-        message: 'Title is required',
-      });
-    }
-
-    // 3. Attach logged-in user (owner)
     const userId = req.user?.userId;
 
     if (!userId) {
-      return res.status(401).json({
-        message: 'Unauthorized',
-      });
+      return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    // 4 CREATE TASK
+    const {
+      title,
+      description,
+      priority,
+      status,
+      dueDate,
+      tags,
+      assignedTo,
+      collaborators = [],
+    } = req.body;
+
+    if (!title) {
+      return res.status(400).json({ message: 'Title is required' });
+    }
+
     const task = await Task.create({
       title,
       description,
@@ -44,25 +46,17 @@ export const createTask = async (req: Request, res: Response) => {
       status,
       dueDate,
       tags,
-      userId, // 🔐 secure ownership
+      owner: userId,
+      assignedTo,
+      collaborators,
     });
 
-    // 4. SAFE RESPONSE
-    res.status(201).json({
+    return res.status(201).json({
       message: 'Task created successfully',
-      task: {
-        id: task._id,
-        title: task.title,
-        description: task.description,
-        priority: task.priority,
-        status: task.status,
-        dueDate: task.dueDate,
-        tags: task.tags,
-        createdAt: task.createdAt,
-      },
+      task,
     });
-  } catch (err: any) {
-    console.error('Create task error:', err.message);
+  } catch (error: any) {
+    console.error('Create task error:', error.message);
 
     return res.status(500).json({
       message: 'Internal server error',
@@ -89,7 +83,6 @@ export const getTasks = async (req: Request, res: Response) => {
       });
     }
 
-    // QUERY PARAMS
     const {
       status,
       priority,
@@ -101,33 +94,36 @@ export const getTasks = async (req: Request, res: Response) => {
       endDate,
     } = req.query;
 
-    // 🔹 BUILD FILTER OBJECT
+    // 🔐 ACCESS FILTER (COLLABORATION)
     const filter: any = {
-      userId,
-      isDelete: false,
+      isDeleted: false,
+      $or: [
+        { owner: userId },
+        { assignedTo: userId },
+        { collaborators: userId },
+      ],
     };
 
-    // 🔹 MULTI STATUS FILTER
+    // 🔹 MULTI STATUS
     if (status) {
-      filter.status = {
-        $in: (status as string).split(','),
-      };
+      filter.status = { $in: (status as string).split(',') };
     }
 
-    // 🔹 MULTI PRIORITY FILTER
+    // 🔹 MULTI PRIORITY
     if (priority) {
-      filter.priority = {
-        $in: (priority as string).split(','),
-      };
+      filter.priority = { $in: (priority as string).split(',') };
     }
 
-    // 🔍 SEARCH (title, description, tags)
+    // 🔍 SEARCH
     if (search) {
-      filter.$or = [
-        { title: { $regex: search as string, $options: 'i' } },
-        { description: { $regex: search as string, $options: 'i' } },
-        { tags: { $in: [new RegExp(search as string, 'i')] } },
-      ];
+      filter.$and = filter.$and || [];
+      filter.$and.push({
+        $or: [
+          { title: { $regex: search as string, $options: 'i' } },
+          { description: { $regex: search as string, $options: 'i' } },
+          { tags: { $in: [new RegExp(search as string, 'i')] } },
+        ],
+      });
     }
 
     // 📅 DATE RANGE
@@ -145,28 +141,27 @@ export const getTasks = async (req: Request, res: Response) => {
 
     // 🔹 PAGINATION
     const pageNumber = parseInt(page as string, 10) || 1;
-    const limitNumber = parseInt(limit as string, 10) || 10;
+    const limitNumber = Math.min(parseInt(limit as string, 10) || 10, 50);
 
     const skip = (pageNumber - 1) * limitNumber;
 
-    // 🔹 EXECUTE QUERY
+    // 🔹 QUERY
     const tasks = await Task.find(filter)
       .sort(sort as string)
       .skip(skip)
-      .limit(limitNumber);
+      .limit(limitNumber)
+      .lean();
 
-    // 🔹 TOTAL COUNT (for frontend pagination)
     const total = await Task.countDocuments(filter);
 
-    // 🔹 RESPONSE
     return res.status(200).json({
       total,
       page: pageNumber,
       pages: Math.ceil(total / limitNumber),
       tasks,
     });
-  } catch (err: any) {
-    console.error('Get task error:', err.message);
+  } catch (error: any) {
+    console.error('Get tasks error:', error.message);
 
     return res.status(500).json({
       message: 'Internal server error',
@@ -186,52 +181,43 @@ export const getTasks = async (req: Request, res: Response) => {
 export const getTask = async (req: Request<Params>, res: Response) => {
   try {
     const userId = req.user?.userId;
-    const id = req.params.id;
+    const { id } = req.params;
 
-    // 1. AUTH CHECK
     if (!userId) {
       return res.status(401).json({
         message: 'Unauthorized',
       });
     }
 
-    // 2. VALIDATE OBJECT ID
+    // 🔹 VALIDATE ID
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
         message: 'Invalid task ID',
       });
     }
 
-    // FIND TASK WITH OWNERSHIP
+    // 🔐 ACCESS FILTER
     const task = await Task.findOne({
       _id: id,
-      userId,
-      isDelete: false,
-    });
+      isDeleted: false,
+      $or: [
+        { owner: userId },
+        { assignedTo: userId },
+        { collaborators: userId },
+      ],
+    }).lean();
 
-    // 4. NOT FOUND
     if (!task) {
       return res.status(404).json({
-        message: 'Task not found',
+        message: 'Task not found or access denied',
       });
     }
 
-    // 5. RESPONSE
     return res.status(200).json({
-      task: {
-        id: task._id,
-        title: task.title,
-        description: task.description,
-        status: task.status,
-        priority: task.priority,
-        dueDate: task.dueDate,
-        tags: task.tags,
-        createdAt: task.createdAt,
-        updatedAt: task.updatedAt,
-      },
+      task,
     });
-  } catch (err: any) {
-    console.error('Get task error:', err.message);
+  } catch (error: any) {
+    console.error('Get task error:', error.message);
 
     return res.status(500).json({
       message: 'Internal server error',
@@ -253,22 +239,29 @@ export const getTask = async (req: Request<Params>, res: Response) => {
 export const updateTask = async (req: Request<Params>, res: Response) => {
   try {
     const userId = req.user?.userId;
-    const id = req.params.id;
+    const { id } = req.params;
 
     if (!userId) {
-      return res.status(401).json({
-        message: 'Unauthorized',
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const task = await Task.findById(id);
+
+    if (!task || task.isDeleted) {
+      return res.status(404).json({ message: 'Task not found' });
+    }
+
+    // 🔐 ACCESS CONTROL
+    const isOwner = task.owner.toString() === userId;
+    const isAssigned = task.assignedTo?.toString() === userId;
+
+    if (!isOwner && !isAssigned) {
+      return res.status(403).json({
+        message: 'Not allowed to update this task',
       });
     }
 
-    // VALIDATE TASK ID
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        message: 'Invalid task ID',
-      });
-    }
-
-    // 2. FILTER ALLOWED FIELDS
+    // 🔹 ALLOWED FIELDS
     const allowedFields = [
       'title',
       'description',
@@ -276,7 +269,6 @@ export const updateTask = async (req: Request<Params>, res: Response) => {
       'priority',
       'dueDate',
       'tags',
-      'assignedTo',
     ];
 
     const updates: any = {};
@@ -287,43 +279,17 @@ export const updateTask = async (req: Request<Params>, res: Response) => {
       }
     }
 
-    // 3. FIND & UPDATE
-    const task = await Task.findOneAndUpdate(
-      {
-        _id: id,
-        userId,
-        isDeleted: false,
-      },
-      updates,
-      {
-        new: true, // return updated Document
-        runValidators: true, // enforce schema validation
-      },
-    );
+    const updatedTask = await Task.findByIdAndUpdate(id, updates, {
+      new: true,
+      runValidators: true,
+    });
 
-    // 4. NOT FOUND
-    if (!task) {
-      return res.status(404).json({
-        message: 'Task not found or unauthorized',
-      });
-    }
-
-    // 5. RESPONSE
     return res.status(200).json({
       message: 'Task updated successfully',
-      task: {
-        id: task._id,
-        title: task.title,
-        description: task.description,
-        status: task.status,
-        priority: task.priority,
-        dueDate: task.dueDate,
-        tags: task.tags,
-        updatedAt: task.updatedAt,
-      },
+      task: updatedTask,
     });
-  } catch (err: any) {
-    console.error('Update task error:', err.message);
+  } catch (error: any) {
+    console.error('Update task error:', error.message);
 
     return res.status(500).json({
       message: 'Internal server error',
@@ -345,48 +311,33 @@ export const deleteTask = async (req: Request<Params>, res: Response) => {
     const userId = req.user?.userId;
     const { id } = req.params;
 
-    // 1. AUTH CHECK
     if (!userId) {
-      return res.status(401).json({
-        message: 'Unauthorized',
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const task = await Task.findById(id);
+
+    if (!task || task.isDeleted) {
+      return res.status(404).json({ message: 'Task not found' });
+    }
+
+    // 🔐 ONLY OWNER
+    if (task.owner.toString() !== userId) {
+      return res.status(403).json({
+        message: 'Only owner can delete this task',
       });
     }
 
-    // 2. VALIDATE ID
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        message: 'Invalid task ID',
-      });
-    }
+    task.isDeleted = true;
+    task.deletedAt = new Date();
 
-    // 3. FIND AND SOFT-DELETE
-    const task = await Task.findOneAndUpdate(
-      {
-        _id: id,
-        userId,
-        isDeleted: false,
-      },
-      {
-        isDeleted: true,
-      },
-      {
-        new: true,
-      },
-    );
+    await task.save();
 
-    // 4. NOT FOUND
-    if (!task) {
-      return res.status(404).json({
-        message: 'Task not found or already deleted',
-      });
-    }
-
-    // 5. RESPONSE
     return res.status(200).json({
       message: 'Task deleted successfully',
     });
-  } catch (err: any) {
-    console.error('Delete task error:', err.message);
+  } catch (error: any) {
+    console.error('Delete task error:', error.message);
 
     return res.status(500).json({
       message: 'Internal server error',
@@ -437,6 +388,96 @@ export const assignTask = async (req: Request, res: Response) => {
 /*
 ============== COLLABROATOR TASK - CONTROLLER =============
 ---- FLOW ----
-1. Only owner can add/remove collaborators
-2. Use $addToSet (avoid duplicates)
+1. Only owner can modify collaborators
+2. Add OR remove collaborators
+3. Prevent duplicates
+4. Validate users exist
+5. Prevent owner being added as collaborator
+6. Return updated task
 */
+export const updateCollaborators = async (
+  req: Request<Params>,
+  res: Response,
+) => {
+  try {
+    const userId = req.user?.userId;
+    const { id } = req.params;
+    const { add = [], remove = [] } = req.body;
+
+    // 1. AUTH CHECK
+    if (!userId) {
+      return res.status(401).json({
+        message: 'Unauthorized',
+      });
+    }
+
+    // 2. VALIDATE TASK ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        message: 'Invalid task ID',
+      });
+    }
+
+    // 3. FIND TASK
+    const task = await Task.findById(id);
+
+    if (!task || task.isDeleted) {
+      return res.status(404).json({
+        message: 'Task not found',
+      });
+    }
+
+    // 4. ONLY OWNER CAN MODIFY
+    if (task.owner.toString() !== userId) {
+      return res.status(403).json({
+        message: 'Only owner can update collaborators',
+      });
+    }
+
+    // 5. VALIDATE USERS EXIST
+    const allUserIds = [...add, ...remove];
+
+    if (allUserIds.length > 0) {
+      const users = await User.find({
+        _id: { $in: allUserIds },
+      });
+
+      if (users.length !== allUserIds.length) {
+        return res.status(400).json({
+          message: 'One or more users not found',
+        });
+      }
+    }
+
+    // 6. PREVENT OWNER IN COLLABORATORS
+    const filteredAdd = add.filter(
+      (uid: string) => uid !== task.owner.toString(),
+    );
+
+    // 7. UPDATE COLLABORATORS
+    const updatedTask = await Task.findByIdAndUpdate(
+      id,
+      {
+        $addToSet: {
+          collaborators: { $each: filteredAdd },
+        },
+        $pull: {
+          collaborators: { $in: remove },
+        },
+      },
+      { new: true },
+    );
+
+    // 8. RESPONSE
+    return res.status(200).json({
+      message: 'Collaborators updated successfully',
+      task: updatedTask,
+    });
+  } catch (err: any) {
+    console.error('Update collaborators error:', err.message);
+
+    return res.status(500).json({
+      message: 'Internal server error',
+    });
+  }
+};

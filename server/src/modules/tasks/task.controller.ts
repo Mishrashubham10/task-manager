@@ -2,9 +2,9 @@ import { Request, Response } from 'express';
 import Task from './task.model';
 import mongoose from 'mongoose';
 
-type Params =  {
+type Params = {
   id: string;
-}
+};
 
 /*
 ============== CREATE TASK - CONTROLLER =============
@@ -95,8 +95,10 @@ export const getTasks = async (req: Request, res: Response) => {
       priority,
       search,
       sort = '-createdAt',
-      page = '10',
+      page = '1',
       limit = '10',
+      startDate,
+      endDate,
     } = req.query;
 
     // 🔹 BUILD FILTER OBJECT
@@ -105,20 +107,40 @@ export const getTasks = async (req: Request, res: Response) => {
       isDelete: false,
     };
 
+    // 🔹 MULTI STATUS FILTER
     if (status) {
-      filter.status = status;
+      filter.status = {
+        $in: (status as string).split(','),
+      };
     }
 
+    // 🔹 MULTI PRIORITY FILTER
     if (priority) {
-      filter.priority = priority;
+      filter.priority = {
+        $in: (priority as string).split(','),
+      };
     }
 
-    // 🔍 SEARCH (title + description)
+    // 🔍 SEARCH (title, description, tags)
     if (search) {
       filter.$or = [
         { title: { $regex: search as string, $options: 'i' } },
         { description: { $regex: search as string, $options: 'i' } },
+        { tags: { $in: [new RegExp(search as string, 'i')] } },
       ];
+    }
+
+    // 📅 DATE RANGE
+    if (startDate || endDate) {
+      filter.createdAt = {};
+
+      if (startDate) {
+        filter.createdAt.$gte = new Date(startDate as string);
+      }
+
+      if (endDate) {
+        filter.createdAt.$lte = new Date(endDate as string);
+      }
     }
 
     // 🔹 PAGINATION
@@ -371,3 +393,50 @@ export const deleteTask = async (req: Request<Params>, res: Response) => {
     });
   }
 };
+
+/*
+============== ASSIGN TASK - CONTROLLER =============
+---- FLOW ----
+1. Only owner can assign
+2. Validate user exists
+3. Update assignedTo
+*/
+export const assignTask = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    const { id } = req.params;
+    const { assignedTo } = req.body;
+
+    const task = await Task.findById(id);
+
+    if (!task) {
+      return res.status(404).json({ message: 'Task not found' });
+    }
+
+    // ONLY OWNER CAN ASSIGN
+    if (task.owner.toString() !== userId) {
+      return res.status(403).json({
+        message: 'Only owner can assign task',
+      });
+    }
+
+    task.assignedTo = assignedTo;
+    await task.save();
+
+    return res.status(200).json({
+      message: 'Task assigned successfully',
+      task,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      message: 'Internal server error',
+    });
+  }
+};
+
+/*
+============== COLLABROATOR TASK - CONTROLLER =============
+---- FLOW ----
+1. Only owner can add/remove collaborators
+2. Use $addToSet (avoid duplicates)
+*/

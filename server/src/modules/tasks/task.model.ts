@@ -44,10 +44,20 @@ const taskSchema = new Schema<ITask>(
       index: true,
     },
 
+    owner: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+
+    collaborators: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+    },
+
     assignedTo: {
       type: Schema.Types.ObjectId,
       ref: 'User',
-      default: null,
     },
 
     tags: {

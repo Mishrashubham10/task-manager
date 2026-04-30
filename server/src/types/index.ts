@@ -29,6 +29,9 @@ export interface ITask extends Document {
   userId: Types.ObjectId; // owner
   assignedTo?: Types.ObjectId; // assigned user
 
+  owner: Types.ObjectId;
+  collaborators?: Types.ObjectId;
+
   tags: string[];
 
   completedAt?: Date;

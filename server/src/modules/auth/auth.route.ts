@@ -4,6 +4,7 @@ import {
   getMe,
   login,
   logout,
+  logoutAll,
   refreshToken,
   register,
   resetPassword,
@@ -22,7 +23,8 @@ router.post('/login', loginLimiter, login);
 router.post('/refresh-token', refreshToken);
 router.post('/forgot-password', forgotPasswordLimiter, protect, forgotPassword);
 router.post('/reset-password/:token', protect, resetPassword);
-router.post('/logout', logout);
 router.get('/me', protect, getMe);
+router.post('/logout', logout);
+router.post('/logout-all', logoutAll);
 
 export default router;

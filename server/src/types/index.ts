@@ -9,6 +9,7 @@ export interface IUser extends Document {
   isDeleted: boolean;
   updatedAt: Date;
   createdAt: Date;
+  deletedAt?: Date;
 
   resetPasswordToken?: string;
   resetPasswordExpires?: Date;

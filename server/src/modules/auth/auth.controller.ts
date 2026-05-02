@@ -444,42 +444,6 @@ export const resetPassword = async (req: Request, res: Response) => {
 };
 
 /*
-============ LOGOUT CONTROLLER ==============
---- FLOW ---
-1. Clear cookie
-2. Remove refresh token from DB
-*/
-export const logout = async (req: Request, res: Response) => {
-  try {
-    const { refreshToken } = req.cookies as Cookies;
-
-    if (refreshToken) {
-      await RefreshToken.findOneAndUpdate(
-        { token: refreshToken },
-        {
-          isRevoked: true,
-          expiresAt: new Date(),
-        },
-      );
-    }
-
-    res.clearCookie('refreshToken', {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-    });
-
-    return res.status(200).json({
-      message: 'Logged out successfully',
-    });
-  } catch (error: any) {
-    return res.status(500).json({
-      message: error?.message || 'Internal server error',
-    });
-  }
-};
-
-/*
 ============ GETME CONTROLLER ==============
 --- FLOW ---
 1. GET THE USER FROM REQ.USER
@@ -525,6 +489,66 @@ export const getMe = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: err.message || 'Internal server error',
+    });
+  }
+};
+
+/*
+============ LOGOUT CONTROLLER ==============
+--- FLOW ---
+1. Clear cookie
+2. Remove refresh token from DB
+*/
+export const logout = async (req: Request, res: Response) => {
+  try {
+    const { refreshToken } = req.cookies as Cookies;
+
+    if (refreshToken) {
+      await RefreshToken.findOneAndUpdate(
+        { token: refreshToken },
+        {
+          isRevoked: true,
+          expiresAt: new Date(),
+        },
+      );
+    }
+
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+    });
+
+    return res.status(200).json({
+      message: 'Logged out successfully',
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      message: error?.message || 'Internal server error',
+    });
+  }
+};
+
+/*
+============ LOGOUT-ALL CONTROLLER ==============
+--- FLOW ---
+1. GET USERID FROM REQ
+2. Remove refresh token from DB
+*/
+export const logoutAll = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+
+    await RefreshToken.updateMany({ userId }, { isRevoked: true });
+
+    res.clearCookie('refreshToken');
+
+    return res.status(200).json({
+      message: 'Logged out from all devices',
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      message: 'Internal server error',
     });
   }
 };

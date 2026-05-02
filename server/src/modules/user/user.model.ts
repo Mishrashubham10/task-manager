@@ -42,16 +42,22 @@ const userSchema = new Schema<IUser>(
     },
 
     resetPasswordToken: {
-      type: String
+      type: String,
     },
     resetPasswordExpires: {
-      type: Date
+      type: Date,
+    },
+
+    deletedAt: {
+      type: Date,
     },
   },
   {
     timestamps: true,
   },
 );
+
+userSchema.index({ email: 1, isDeleted: 1 });
 
 // PASSWORD HASHING WITH PRE METHOD
 userSchema.pre('save', async function name() {

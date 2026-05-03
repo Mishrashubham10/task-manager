@@ -55,3 +55,16 @@ export interface IRefreshToken extends Document {
   ipAddress: string;
   userAgent: string;
 }
+
+// NOTIFICATION INTERFACE
+export interface INotification extends Document {
+  userId: Types.ObjectId;
+  type:
+    | 'TASK_ASSIGNED'
+    | 'TASK_UPDATED'
+    | 'TASK_DELETED'
+    | 'COLLABORATOR_ADDED';
+  taskId: Types.ObjectId;
+  message: string;
+  isRead: boolean;
+}

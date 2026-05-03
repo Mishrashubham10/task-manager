@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import authRoutes from './modules/auth/auth.route';
 import taskRoutes from './modules/tasks/task.route';
 import sessionRoutes from './modules/user/user.route';
+import notificationRoutes from "./modules/notifications/notification.route";
 
 const app: Application = express();
 
@@ -30,5 +31,6 @@ console.log('CLIENT_URL:', process.env.CLIENT_URI);
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/tasks', taskRoutes);
 app.use('/api/v1/sessions', sessionRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
 
 export default app;

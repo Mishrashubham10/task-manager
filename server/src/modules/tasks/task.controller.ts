@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import Task from './task.model';
 import mongoose from 'mongoose';
 import User from '../user/user.model';
+import { createNotification } from '../notifications/notification.utility';
 
 type Params = {
   id: string;
@@ -298,54 +299,6 @@ export const updateTask = async (req: Request<Params>, res: Response) => {
 };
 
 /*
-============== DELETE TASK - CONTROLLER =============
----- FLOW ----
-1. Validate user
-2. Validate task ID
-3. Ensure ownership
-4. Soft delete (isDeleted = true)
-5. Return success response
-*/
-export const deleteTask = async (req: Request<Params>, res: Response) => {
-  try {
-    const userId = req.user?.userId;
-    const { id } = req.params;
-
-    if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    const task = await Task.findById(id);
-
-    if (!task || task.isDeleted) {
-      return res.status(404).json({ message: 'Task not found' });
-    }
-
-    // 🔐 ONLY OWNER
-    if (task.owner.toString() !== userId) {
-      return res.status(403).json({
-        message: 'Only owner can delete this task',
-      });
-    }
-
-    task.isDeleted = true;
-    task.deletedAt = new Date();
-
-    await task.save();
-
-    return res.status(200).json({
-      message: 'Task deleted successfully',
-    });
-  } catch (error: any) {
-    console.error('Delete task error:', error.message);
-
-    return res.status(500).json({
-      message: 'Internal server error',
-    });
-  }
-};
-
-/*
 ============== ASSIGN TASK - CONTROLLER =============
 ---- FLOW ----
 1. Only owner can assign
@@ -373,6 +326,13 @@ export const assignTask = async (req: Request, res: Response) => {
 
     task.assignedTo = assignedTo;
     await task.save();
+
+    await createNotification({
+      userId: assignedTo,
+      type: 'TASK_ASSIGNED',
+      taskId: task._id.toString(),
+      message: 'You have been assigned a new task',
+    });
 
     return res.status(200).json({
       message: 'Task assigned successfully',
@@ -475,6 +435,54 @@ export const updateCollaborators = async (
     });
   } catch (err: any) {
     console.error('Update collaborators error:', err.message);
+
+    return res.status(500).json({
+      message: 'Internal server error',
+    });
+  }
+};
+
+/*
+============== DELETE TASK - CONTROLLER =============
+---- FLOW ----
+1. Validate user
+2. Validate task ID
+3. Ensure ownership
+4. Soft delete (isDeleted = true)
+5. Return success response
+*/
+export const deleteTask = async (req: Request<Params>, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    const { id } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const task = await Task.findById(id);
+
+    if (!task || task.isDeleted) {
+      return res.status(404).json({ message: 'Task not found' });
+    }
+
+    // 🔐 ONLY OWNER
+    if (task.owner.toString() !== userId) {
+      return res.status(403).json({
+        message: 'Only owner can delete this task',
+      });
+    }
+
+    task.isDeleted = true;
+    task.deletedAt = new Date();
+
+    await task.save();
+
+    return res.status(200).json({
+      message: 'Task deleted successfully',
+    });
+  } catch (error: any) {
+    console.error('Delete task error:', error.message);
 
     return res.status(500).json({
       message: 'Internal server error',

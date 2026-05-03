@@ -22,6 +22,7 @@ app.use(
   }),
 );
 app.use(cookieParser());
+app.set('trust proxy', 1);
 
 console.log('CLIENT_URL:', process.env.CLIENT_URI);
 

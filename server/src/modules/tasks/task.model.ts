@@ -1,9 +1,6 @@
 import mongoose, { Schema } from 'mongoose';
 import { ITask } from '../../types';
 
-/*
-=========== TASK SCHEMA ============
-*/
 const taskSchema = new Schema<ITask>(
   {
     title: {
@@ -30,39 +27,42 @@ const taskSchema = new Schema<ITask>(
     },
 
     dueDate: {
-      type: Date, // optional
+      type: Date,
     },
 
     completedAt: {
       type: Date,
     },
 
-    userId: {
+    // ✅ SINGLE SOURCE OF TRUTH
+    owner: {
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
       index: true,
     },
 
-    owner: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-    },
-
-    collaborators: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
-    },
-
     assignedTo: {
       type: Schema.Types.ObjectId,
       ref: 'User',
+      index: true,
     },
+
+    collaborators: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
 
     tags: {
       type: [String],
       default: [],
+    },
+
+    isCompleted: {
+      type: Boolean,
+      default: false,
     },
 
     isDeleted: {
@@ -82,8 +82,13 @@ const taskSchema = new Schema<ITask>(
 /*
 =========== INDEXES ============
 */
-taskSchema.index({ userId: 1, status: 1 }); // fast filtering
-taskSchema.index({ dueDate: 1 }); // sorting by deadline
+taskSchema.index({ owner: 1, status: 1 });
+taskSchema.index({ dueDate: 1 });
+taskSchema.index({
+  owner: 1,
+  assignedTo: 1,
+  collaborators: 1,
+});
 
 const Task = mongoose.model<ITask>('Task', taskSchema);
 

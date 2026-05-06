@@ -1,63 +1,31 @@
 'use client';
 
-import Link from 'next/link';
-import {
-  useGetMeQuery,
-  useLogoutMutation,
-} from '@/redux/features/auth/authApi';
-import { Button } from '../ui/button';
+import { useRouter } from 'next/navigation';
 
 export default function Navbar() {
-  const { data: user, isLoading, isError } = useGetMeQuery();
+  const router = useRouter();
 
-  const [logout, { isLoading: isLoggingOut }] = useLogoutMutation();
-
-  const handleLogout = async () => {
-    try {
-      await logout().unwrap();
-    } catch (error) {
-      console.error('Logout failed:', error);
-    }
+  const handleLogout = () => {
+    // later connect API
+    router.push('/login');
   };
 
   return (
-    <nav className="border-b px-6 py-4 flex justify-between items-center w-full mx-auto">
-      {/* Logo */}
-      <Link href="/" className="text-xl font-bold">
-        Dashboard
-      </Link>
+    <header className="h-16 bg-white border-b flex items-center justify-between px-6">
+      {/* Left */}
+      <h2 className="text-lg font-semibold">Dashboard</h2>
 
-      {/* Right side */}
+      {/* Right */}
       <div className="flex items-center gap-4">
-        {/* 🔄 Loading state */}
-        {isLoading ? (
-          <span className="text-sm text-gray-500">Loading...</span>
-        ) : user && !isError ? (
-          <>
-            {/* ✅ Logged in */}
-            {/* <span className="text-sm">Hi, {user.data?.name}</span> */}
+        <button className="text-sm text-gray-600 hover:text-black">🔔</button>
 
-            <Button
-              variant="outline"
-              onClick={handleLogout}
-              disabled={isLoggingOut}
-            >
-              {isLoggingOut ? 'Logging out...' : 'Logout'}
-            </Button>
-          </>
-        ) : (
-          <>
-            {/* ❌ Not logged in */}
-            <Link href="/login">
-              <Button variant="ghost">Login</Button>
-            </Link>
-
-            <Link href="/register">
-              <Button>Register</Button>
-            </Link>
-          </>
-        )}
+        <button
+          onClick={handleLogout}
+          className="text-sm bg-black text-white px-3 py-1 rounded-md"
+        >
+          Logout
+        </button>
       </div>
-    </nav>
+    </header>
   );
 }

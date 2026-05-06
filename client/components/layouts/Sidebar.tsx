@@ -1,44 +1,42 @@
 'use client';
 
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+import { usePathname } from 'next/navigation';
+
+const navItems = [
+  { name: 'Dashboard', href: '/dashboard' },
+  { name: 'Tasks', href: '/tasks' },
+  { name: 'Notifications', href: '/notifications' },
+];
 
 export default function Sidebar() {
+  const pathname = usePathname();
+
   return (
-    <aside className="w-64 h-screen border-r p-4 flex flex-col">
-      {/* App Name */}
-      <h2 className="text-xl font-bold mb-6">TaskFlow</h2>
+    <aside className="w-64 bg-white border-r h-full p-4">
+      {/* Logo */}
+      <h1 className="text-xl font-bold mb-8">TaskManager</h1>
 
-      {/* Quick Filters */}
-      <div className="space-y-2 text-sm">
-        <Link href="/today" className="block p-2 rounded hover:bg-muted">
-          📅 Today
-        </Link>
-        <Link href="/upcoming" className="block p-2 rounded hover:bg-muted">
-          ⏳ Upcoming
-        </Link>
-        <Link href="/completed" className="block p-2 rounded hover:bg-muted">
-          ✅ Completed
-        </Link>
-      </div>
+      {/* Nav */}
+      <nav className="space-y-2">
+        {navItems.map((item) => {
+          const isActive = pathname === item.href;
 
-      {/* Projects */}
-      <div className="mt-6">
-        <p className="text-xs text-muted-foreground mb-2">Projects</p>
-        <div className="space-y-1">
-          <div className="p-2 rounded hover:bg-muted cursor-pointer">
-            📁 Personal
-          </div>
-          <div className="p-2 rounded hover:bg-muted cursor-pointer">
-            📁 Work
-          </div>
-        </div>
-      </div>
-
-      {/* Add Task */}
-      <div className="mt-auto">
-        <Button className="w-full">+ New Task</Button>
-      </div>
+          return (
+            <Link
+              key={item.name}
+              href={item.href}
+              className={`block px-3 py-2 rounded-md text-sm font-medium transition ${
+                isActive
+                  ? 'bg-blue-100 text-blue-600'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              {item.name}
+            </Link>
+          );
+        })}
+      </nav>
     </aside>
   );
 }

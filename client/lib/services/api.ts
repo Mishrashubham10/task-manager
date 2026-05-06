@@ -1,0 +1,19 @@
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+
+export const api = createApi({
+  reducerPath: 'api',
+  baseQuery: fetchBaseQuery({
+    baseUrl: process.env.NEXT_PUBLIC_API_URL,
+
+    credentials: 'include', // 🔥 VERY IMPORTANT (cookies)
+
+    prepareHeaders: (headers) => {
+      // optional: add access token later
+      return headers;
+    },
+  }),
+
+  tagTypes: ['Task', 'User', 'Notification'],
+
+  endpoints: () => ({}),
+});

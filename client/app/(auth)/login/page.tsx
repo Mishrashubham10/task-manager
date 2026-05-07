@@ -29,7 +29,7 @@ export default function LoginPage() {
 
     try {
       await login(formData).unwrap();
-      router.push("/");
+      router.push("/tasks");
     } catch (err) {
       console.log('Login Failed', err);
     }

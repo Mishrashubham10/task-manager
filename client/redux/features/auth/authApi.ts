@@ -1,4 +1,4 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { api } from '@/lib/services/api';
 
 interface LoginRequest {
   email: string;
@@ -22,59 +22,58 @@ interface AuthResponse {
   message: string;
 }
 
-export const authApi = createApi({
-  reducerPath: 'authApi',
-
-  baseQuery: fetchBaseQuery({
-    baseUrl: process.env.NEXT_PUBLIC_API_URL, // ✅ dynamic
-    credentials: 'include',
-    prepareHeaders: (headers, { getState }) => {
-      // optional: attach token if using localStorage
-      // const token = (getState() as RootState).auth.token;
-      // if (token) headers.set('authorization', `Bearer ${token}`);
-      return headers;
-    },
-  }),
-
-  tagTypes: ['Auth'], // ✅ important
-
+export const authApi = api.injectEndpoints({
   endpoints: (builder) => ({
-    login: builder.mutation<AuthResponse, LoginRequest>({
-      query: (data) => ({
-        url: '/login',
-        method: 'POST',
-        body: data,
-      }),
-      invalidatesTags: ['Auth'], // ✅ refresh user data
-    }),
-
-    register: builder.mutation<AuthResponse, RegisterRequest>({
+    // REGISTER MUTATION
+    register: builder.mutation({
       query: (data) => ({
         url: '/register',
         method: 'POST',
         body: data,
       }),
-      invalidatesTags: ['Auth'],
+      invalidatesTags: ['User'],
     }),
 
-    getMe: builder.query<User, void>({
+    // LOGIN MUTATION
+    login: builder.mutation({
+      query: (data) => ({
+        url: '/login',
+        method: 'POST',
+        body: data,
+      }),
+      invalidatesTags: ['User'],
+    }),
+
+    // GET-ME QUERY
+    getMe: builder.query({
       query: () => '/me',
-      providesTags: ['Auth'],
+      providesTags: ['User'],
     }),
 
-    logout: builder.mutation<{ message: string }, void>({
+    // LOGOUT MUTATION
+    logout: builder.mutation({
       query: () => ({
         url: '/logout',
         method: 'POST',
       }),
-      invalidatesTags: ['Auth'],
+      invalidatesTags: ['User'],
+    }),
+
+    // LOGOUT ALL MUTATION
+    logoutAll: builder.mutation({
+      query: () => ({
+        url: '/logout-all',
+        method: 'POST',
+      }),
+      invalidatesTags: ['User'],
     }),
   }),
 });
 
 export const {
-  useLoginMutation,
-  useGetMeQuery,
-  useLogoutMutation,
   useRegisterMutation,
+  useLoginMutation,
+  useLogoutMutation,
+  useGetMeQuery,
+  useLogoutAllMutation,
 } = authApi;

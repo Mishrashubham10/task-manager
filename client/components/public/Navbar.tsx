@@ -7,7 +7,7 @@ export default function PublicNavbar() {
     <header className="flex items-center justify-between px-6 py-4 border-b bg-white w-full">
       <h1 className="text-lg font-bold">TaskManager</h1>
 
-      <div className="flex gap-4">
+      <div className="flex gap-6 items-center">
         <Link href="/login" className="text-sm">
           Login
         </Link>
